@@ -19,7 +19,7 @@ Requirements: JDK 21+, Docker, and Docker Compose.
 
 ```bash
 docker compose up -d postgres kafka
-./mvnw spring-boot:run
+mvn spring-boot:run
 ```
 
 The API starts on `http://localhost:8080`. Every request must include `X-Tenant-Id`.
@@ -53,3 +53,4 @@ Trigger it with `POST /api/v1/workflows/{id}/runs`, then poll `GET /api/v1/runs/
 ## License
 
 MIT
+
