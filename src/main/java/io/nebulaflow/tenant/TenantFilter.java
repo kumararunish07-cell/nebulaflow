@@ -1,3 +1,3 @@
-﻿package io.nebulaflow.tenant;
+package io.nebulaflow.tenant;
 import jakarta.servlet.*; import jakarta.servlet.http.*; import org.springframework.stereotype.Component; import java.io.IOException;
 @Component public class TenantFilter implements Filter { public void doFilter(ServletRequest req,ServletResponse res,FilterChain chain)throws IOException,ServletException { HttpServletRequest request=(HttpServletRequest)req; String tenant=request.getHeader("X-Tenant-Id"); if(tenant==null||tenant.isBlank()){((HttpServletResponse)res).sendError(400,"X-Tenant-Id header is required");return;} TenantContext.set(tenant.trim()); try{chain.doFilter(req,res);}finally{TenantContext.clear();} } }
