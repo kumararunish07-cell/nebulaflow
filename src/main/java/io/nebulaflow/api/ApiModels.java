@@ -1,4 +1,4 @@
-﻿package io.nebulaflow.api;
+package io.nebulaflow.api;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
