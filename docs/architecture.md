@@ -1,4 +1,4 @@
-﻿# Architecture notes
+# Architecture notes
 
 ## Run lifecycle
 
