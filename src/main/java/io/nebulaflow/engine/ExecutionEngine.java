@@ -1,4 +1,4 @@
-﻿package io.nebulaflow.engine;
+package io.nebulaflow.engine;
 import com.fasterxml.jackson.databind.ObjectMapper; import org.springframework.stereotype.Component; import java.util.*;
 @Component public class ExecutionEngine {
   private final ObjectMapper mapper; public ExecutionEngine(ObjectMapper mapper){this.mapper=mapper;}
