@@ -11,6 +11,10 @@ spring:
       ddl-auto: validate
   flyway:
     enabled: true
+  data:
+    redis:
+      host: localhost
+      port: 6379
   kafka:
     bootstrap-servers: localhost:9092
     producer:
@@ -26,3 +30,7 @@ management:
 nebulaflow:
   events:
     topic: nebulaflow.lifecycle
+  cache:
+    ttl: 10m
+  outbox:
+    poll-delay: 1000
