@@ -1,4 +1,4 @@
-﻿create table workflow_definitions (
+create table workflow_definitions (
   id uuid primary key, tenant_id varchar(120) not null, name varchar(200) not null,
   version integer not null, active boolean not null, definition_json text not null,
   created_at timestamp with time zone not null, unique (tenant_id, name, version)
