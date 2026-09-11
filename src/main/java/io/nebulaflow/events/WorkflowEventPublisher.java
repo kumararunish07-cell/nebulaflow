@@ -1,3 +1,40 @@
 package io.nebulaflow.events;
-import io.nebulaflow.domain.WorkflowRunEntity; import org.slf4j.*; import org.springframework.beans.factory.annotation.Value; import org.springframework.kafka.core.KafkaTemplate; import org.springframework.stereotype.Component;
-@Component public class WorkflowEventPublisher {private static final Logger log=LoggerFactory.getLogger(WorkflowEventPublisher.class); private final KafkaTemplate<String,Object> kafka; private final String topic; public WorkflowEventPublisher(KafkaTemplate<String,Object> kafka,@Value("${nebulaflow.events.topic:nebulaflow.lifecycle}")String topic){this.kafka=kafka;this.topic=topic;} public void publish(WorkflowRunEntity run){var event=java.util.Map.of("runId",run.getId().toString(),"workflowId",run.getWorkflowId().toString(),"tenantId",run.getTenantId(),"status",run.getStatus().name(),"at",java.time.Instant.now().toString()); kafka.send(topic,run.getId().toString(),event).whenComplete((result,error)->{if(error!=null)log.warn("lifecycle event publish failed for {}: {}",run.getId(),error.getMessage());});}}
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.nebulaflow.domain.WorkflowRunEntity;
+import io.nebulaflow.outbox.OutboxEventEntity;
+import io.nebulaflow.outbox.OutboxEventRepository;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+
+import java.time.Instant;
+import java.util.Map;
+import java.util.UUID;
+
+@Component
+public class WorkflowEventPublisher {
+  private final OutboxEventRepository outbox;
+  private final String topic;
+  private final ObjectMapper mapper;
+
+  public WorkflowEventPublisher(OutboxEventRepository outbox, ObjectMapper mapper,
+      @Value("${nebulaflow.events.topic:nebulaflow.lifecycle}") String topic) {
+    this.outbox = outbox;
+    this.mapper = mapper;
+    this.topic = topic;
+  }
+
+  public void publish(WorkflowRunEntity run) {
+    try {
+      Map<String, Object> event = Map.of(
+          "runId", run.getId().toString(),
+          "workflowId", run.getWorkflowId().toString(),
+          "tenantId", run.getTenantId(),
+          "status", run.getStatus().name(),
+          "at", Instant.now().toString());
+      outbox.save(new OutboxEventEntity(UUID.randomUUID(), topic, run.getId().toString(), mapper.writeValueAsString(event), Instant.now()));
+    } catch (Exception error) {
+      throw new IllegalStateException("could not write lifecycle event", error);
+    }
+  }
+}
