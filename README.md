@@ -6,12 +6,12 @@ NebulaFlow is a portfolio-grade distributed workflow orchestration platform buil
 
 ## Architecture
 
-- **API** — versioned REST endpoints for workflow definitions and runs.
-- **Orchestrator** — validates graphs, plans dependencies, and dispatches runnable nodes.
-- **Execution engine** — virtual-thread workers and deterministic task handlers.
-- **Durability** — PostgreSQL, JPA, and Flyway migrations.
-- **Events** — Kafka lifecycle events for downstream integrations.
-- **Operations** — Actuator health and metrics, Docker Compose, and GitHub Actions.
+- **API** â€” versioned REST endpoints for workflow definitions and runs.
+- **Orchestrator** â€” validates graphs, plans dependencies, and dispatches runnable nodes.
+- **Execution engine** â€” virtual-thread workers and deterministic task handlers.
+- **Durability** â€” PostgreSQL, JPA, and Flyway migrations.
+- **Events** â€” Kafka lifecycle events for downstream integrations.
+- **Operations** - Actuator health and metrics plus Docker Compose.
 
 ## Quick start
 
@@ -53,4 +53,5 @@ Trigger it with `POST /api/v1/workflows/{id}/runs`, then poll `GET /api/v1/runs/
 ## License
 
 MIT
+
 
