@@ -1,4 +1,4 @@
-﻿package io.nebulaflow.domain;
+package io.nebulaflow.domain;
 
 import jakarta.persistence.*;
 import java.time.Instant;
