@@ -1,4 +1,4 @@
-﻿package io.nebulaflow.api;
+package io.nebulaflow.api;
 import io.nebulaflow.api.ApiModels.ErrorResponse; import io.nebulaflow.engine.WorkflowValidationException; import org.springframework.http.*; import org.springframework.web.bind.annotation.*; import java.time.Instant; import java.util.NoSuchElementException;
 @RestControllerAdvice public class ApiExceptionHandler { @ExceptionHandler(WorkflowValidationException.class) ResponseEntity<ErrorResponse> validation(WorkflowValidationException e){return ResponseEntity.badRequest().body(new ErrorResponse("INVALID_WORKFLOW",e.getMessage(),Instant.now()));} @ExceptionHandler(NoSuchElementException.class) ResponseEntity<ErrorResponse> notFound(){return ResponseEntity.notFound().build();} @ExceptionHandler(Exception.class) ResponseEntity<ErrorResponse> generic(){return ResponseEntity.status(500).body(new ErrorResponse("INTERNAL_ERROR","request failed",Instant.now()));} }
 
