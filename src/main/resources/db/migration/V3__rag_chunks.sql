@@ -1,0 +1,2 @@
+create table rag_chunks (id uuid primary key,tenant_id varchar(120) not null,collection_name varchar(160) not null,document_id varchar(200) not null,chunk_index integer not null,content text not null,metadata_json text not null,embedding_json text not null,created_at timestamp with time zone not null,constraint uk_rag_position unique (tenant_id,collection_name,document_id,chunk_index));
+create index idx_rag_scope on rag_chunks(tenant_id,collection_name);

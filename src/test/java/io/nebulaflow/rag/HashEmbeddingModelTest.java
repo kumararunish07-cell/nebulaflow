@@ -1,0 +1,2 @@
+package io.nebulaflow.rag; import static org.junit.jupiter.api.Assertions.*; import org.junit.jupiter.api.Test;
+class HashEmbeddingModelTest { @Test void isDeterministicAndNormalized(){var m=new HashEmbeddingModel(64);var a=m.embed("NebulaFlow durable workflows");assertEquals(a,m.embed("NebulaFlow durable workflows"));assertEquals(64,a.size());assertEquals(1.0,a.stream().mapToDouble(x->x*x).sum(),0.000001);} }

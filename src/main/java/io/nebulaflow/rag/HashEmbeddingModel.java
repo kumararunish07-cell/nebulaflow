@@ -1,0 +1,6 @@
+package io.nebulaflow.rag;
+import java.util.*; import java.util.regex.*; import org.springframework.beans.factory.annotation.Value; import org.springframework.stereotype.Component;
+@Component public class HashEmbeddingModel implements EmbeddingModel { private static final Pattern TOKEN=Pattern.compile("[\\p{L}\\p{N}]{2,}"); private final int dimensions;
+ public HashEmbeddingModel(@Value("${nebulaflow.rag.embedding-dimensions:256}") int dimensions){if(dimensions<32||dimensions>4096)throw new IllegalArgumentException("embedding dimensions must be between 32 and 4096");this.dimensions=dimensions;}
+ public List<Double> embed(String text){double[] v=new double[dimensions]; Matcher m=TOKEN.matcher(text==null?"":text.toLowerCase(Locale.ROOT)); while(m.find()){String t=m.group();v[Math.floorMod(t.hashCode(),dimensions)]+=1.0;if(t.length()>3)v[Math.floorMod((t.substring(0,2)+t.substring(t.length()-2)).hashCode(),dimensions)]+=0.25;} double n=0;for(double x:v)n+=x*x;n=Math.sqrt(n);List<Double> r=new ArrayList<>(dimensions);for(double x:v)r.add(n==0?0:x/n);return List.copyOf(r);}
+ public int dimensions(){return dimensions;} }
