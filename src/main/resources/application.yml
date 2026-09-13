@@ -1,10 +1,13 @@
 spring:
+  config:
+    # Mount one of these files from a secret store in production; neither file is required locally.
+    import: "optional:file:./config/application-secrets.yml,optional:file:/run/secrets/nebulaflow.yml"
   application:
     name: nebulaflow
   datasource:
-    url: jdbc:postgresql://localhost:5432/nebulaflow
-    username: nebulaflow
-    password: nebulaflow
+    url: "${NEBULAFLOW_DB_URL:jdbc:postgresql://localhost:5432/nebulaflow}"
+    username: "${NEBULAFLOW_DB_USERNAME:nebulaflow}"
+    password: "${NEBULAFLOW_DB_PASSWORD:nebulaflow}"
   jpa:
     open-in-view: false
     hibernate:
@@ -13,15 +16,15 @@ spring:
     enabled: true
   data:
     redis:
-      host: localhost
-      port: 6379
+      host: "${NEBULAFLOW_REDIS_HOST:localhost}"
+      port: "${NEBULAFLOW_REDIS_PORT:6379}"
   kafka:
-    bootstrap-servers: localhost:9092
+    bootstrap-servers: "${NEBULAFLOW_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}"
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
 server:
-  port: 8080
+  port: "${SERVER_PORT:8080}"
 management:
   endpoints:
     web:
@@ -29,15 +32,24 @@ management:
         include: health,info,metrics,prometheus
 nebulaflow:
   events:
-    topic: nebulaflow.lifecycle
+    topic: "${NEBULAFLOW_EVENTS_TOPIC:nebulaflow.lifecycle}"
   cache:
-    ttl: 10m
+    ttl: "${NEBULAFLOW_CACHE_TTL:10m}"
   outbox:
-    poll-delay: 1000
+    poll-delay: "${NEBULAFLOW_OUTBOX_POLL_DELAY:1000}"
   security:
-    # Development-only identities. Set NEBULAFLOW_API_KEYS in real environments.
-    # Format: apiKey=principal|ROLE_NAME|TENANTS:tenant-a,tenant-b;otherKey=...
+    # API_KEY is the self-contained development default. Use OIDC or HYBRID in production.
+    mode: "${NEBULAFLOW_SECURITY_MODE:API_KEY}"
+    # Development-only identities. In production, leave this empty or use a secret file.
+    # Format: apiKey=principal|ROLE_NAME|ROLE_NAME|TENANTS:tenant-a,tenant-b;otherKey=...
     api-keys: "${NEBULAFLOW_API_KEYS:demo-admin=admin|ROLE_ADMIN|ROLE_OPERATOR|TENANTS:demo;demo-operator=operator|ROLE_OPERATOR|TENANTS:demo;demo-viewer=viewer|ROLE_VIEWER|TENANTS:demo}"
+    oidc:
+      issuer-uri: "${NEBULAFLOW_OIDC_ISSUER_URI:}"
+      jwk-set-uri: "${NEBULAFLOW_OIDC_JWK_SET_URI:}"
+      audience: "${NEBULAFLOW_OIDC_AUDIENCE:}"
+      roles-claim: "${NEBULAFLOW_OIDC_ROLES_CLAIM:roles}"
+      tenant-claim: "${NEBULAFLOW_OIDC_TENANT_CLAIM:tenants}"
+      principal-claim: "${NEBULAFLOW_OIDC_PRINCIPAL_CLAIM:sub}"
   runners:
     http:
       allowed-hosts: "${NEBULAFLOW_HTTP_ALLOWED_HOSTS:localhost,127.0.0.1}"
