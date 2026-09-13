@@ -7,6 +7,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -77,8 +78,9 @@ public class HttpTaskRunner implements TaskRunner {
   }
 
   private static Set<String> parseHosts(String raw) {
-    return Set.of(raw == null ? "" : raw.split(",")).stream().map(String::trim).map(value -> value.toLowerCase(Locale.ROOT))
-        .filter(value -> !value.isBlank()).collect(Collectors.toUnmodifiableSet());
+    return Arrays.stream((raw == null ? "" : raw).split(",")).map(String::trim)
+        .map(value -> value.toLowerCase(Locale.ROOT)).filter(value -> !value.isBlank())
+        .collect(Collectors.toUnmodifiableSet());
   }
 
   @SuppressWarnings("unchecked")
