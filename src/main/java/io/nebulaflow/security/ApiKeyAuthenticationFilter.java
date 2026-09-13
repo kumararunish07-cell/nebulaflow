@@ -13,11 +13,16 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
   private final ApiKeyCatalog catalog;
+  private final SecurityProperties properties;
 
-  public ApiKeyAuthenticationFilter(ApiKeyCatalog catalog) { this.catalog = catalog; }
+  public ApiKeyAuthenticationFilter(ApiKeyCatalog catalog, SecurityProperties properties) {
+    this.catalog = catalog;
+    this.properties = properties;
+  }
 
   @Override protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
       throws ServletException, IOException {
+    if (!properties.isApiKeyEnabled()) { chain.doFilter(request, response); return; }
     String apiKey = request.getHeader("X-API-Key");
     if (apiKey == null || apiKey.isBlank()) { chain.doFilter(request, response); return; }
     ApiKeyCatalog.Identity identity = catalog.find(apiKey.trim());
