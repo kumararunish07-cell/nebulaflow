@@ -1,55 +1,47 @@
 package io.nebulaflow.engine;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.stereotype.Component;
-
+import io.nebulaflow.runner.TaskContext;
+import io.nebulaflow.runner.TaskRunner;
+import io.nebulaflow.runner.TaskRunnerRegistry;
 import java.time.Duration;
-import java.util.*;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import org.springframework.stereotype.Component;
 
 @Component
 public class ExecutionEngine {
-  private final ObjectMapper mapper;
   private final RetryPolicy retryPolicy;
+  private final TaskRunnerRegistry runners;
 
-  public ExecutionEngine(ObjectMapper mapper, RetryPolicy retryPolicy) {
-    this.mapper = mapper;
+  public ExecutionEngine(ObjectMapper mapper, RetryPolicy retryPolicy, TaskRunnerRegistry runners) {
     this.retryPolicy = retryPolicy;
+    this.runners = runners;
   }
 
   public Map<String, Object> execute(Map<String, Object> definition, Map<String, Object> input) {
+    return execute(definition, input, new TaskContext("system", null, input));
+  }
+
+  public Map<String, Object> execute(Map<String, Object> definition, Map<String, Object> input, TaskContext taskContext) {
     List<DagPlanner.Node> nodes = DagPlanner.plan(definition);
     Map<String, Object> context = new LinkedHashMap<>(input == null ? Map.of() : input);
-    for (DagPlanner.Node node : nodes) context.put(node.id(), executeNode(node, context));
+    for (DagPlanner.Node node : nodes) context.put(node.id(), executeNode(node, context, taskContext));
     return Map.of("steps", context, "completed", nodes.stream().map(DagPlanner.Node::id).toList());
   }
 
-  private Object executeNode(DagPlanner.Node node, Map<String, Object> context) {
-    int attempts = ((Number) node.config().getOrDefault("maxAttempts", 1)).intValue();
-    long backoff = ((Number) node.config().getOrDefault("backoffMs", 100)).longValue();
-    return retryPolicy.execute(() -> executeNodeOnce(node, context), attempts, Duration.ofMillis(backoff));
+  private Object executeNode(DagPlanner.Node node, Map<String, Object> context, TaskContext taskContext) {
+    int attempts = number(node.config().getOrDefault("maxAttempts", 1), "maxAttempts");
+    long backoff = number(node.config().getOrDefault("backoffMs", 100), "backoffMs");
+    if (attempts < 1) throw new WorkflowValidationException("maxAttempts must be positive for " + node.id());
+    if (backoff < 0) throw new WorkflowValidationException("backoffMs cannot be negative for " + node.id());
+    TaskRunner runner = runners.require(node);
+    return retryPolicy.execute(() -> runner.run(node, context, taskContext), attempts, Duration.ofMillis(backoff));
   }
 
-  private Object executeNodeOnce(DagPlanner.Node node, Map<String, Object> context) {
-    return switch (node.type().toUpperCase(Locale.ROOT)) {
-      case "NOOP" -> Map.of("status", "ok");
-      case "DELAY" -> {
-        long millis = ((Number) node.config().getOrDefault("millis", 0)).longValue();
-        if (millis > 0) try { Thread.sleep(Math.min(millis, 30_000)); }
-        catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new IllegalStateException("task interrupted", e); }
-        yield Map.of("delayedMs", millis);
-      }
-      case "TRANSFORM" -> transform(node, context);
-      default -> throw new WorkflowValidationException("unsupported task type: " + node.type());
-    };
-  }
-
-  private Object transform(DagPlanner.Node node, Map<String, Object> context) {
-    String expression = String.valueOf(node.config().getOrDefault("expression", "identity"));
-    Object value = node.config().get("value");
-    if (value == null && !node.dependsOn().isEmpty()) value = context.get(node.dependsOn().get(node.dependsOn().size() - 1));
-    if ("uppercase".equalsIgnoreCase(expression) && value != null) return String.valueOf(value).toUpperCase(Locale.ROOT);
-    if ("json".equalsIgnoreCase(expression)) try { return mapper.writeValueAsString(context); }
-    catch (Exception e) { throw new IllegalStateException(e); }
-    return value;
+  private static long number(Object value, String name) {
+    if (!(value instanceof Number number)) throw new WorkflowValidationException(name + " must be numeric");
+    return number.longValue();
   }
 }
