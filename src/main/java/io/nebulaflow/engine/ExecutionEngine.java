@@ -32,7 +32,9 @@ public class ExecutionEngine {
   }
 
   private Object executeNode(DagPlanner.Node node, Map<String, Object> context, TaskContext taskContext) {
-    int attempts = number(node.config().getOrDefault("maxAttempts", 1), "maxAttempts");
+    long attemptsValue = number(node.config().getOrDefault("maxAttempts", 1), "maxAttempts");
+    if (attemptsValue > Integer.MAX_VALUE) throw new WorkflowValidationException("maxAttempts is too large for " + node.id());
+    int attempts = (int) attemptsValue;
     long backoff = number(node.config().getOrDefault("backoffMs", 100), "backoffMs");
     if (attempts < 1) throw new WorkflowValidationException("maxAttempts must be positive for " + node.id());
     if (backoff < 0) throw new WorkflowValidationException("backoffMs cannot be negative for " + node.id());
