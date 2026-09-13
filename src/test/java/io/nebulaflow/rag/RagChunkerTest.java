@@ -1,2 +1,2 @@
 package io.nebulaflow.rag; import static org.junit.jupiter.api.Assertions.*; import org.junit.jupiter.api.Test;
-class RagChunkerTest { @Test void createsChunks(){var x=new RagChunker().split("one two three four five six seven eight nine ten",20,5);assertTrue(x.size()>1);} @Test void rejectsBadOverlap(){assertThrows(IllegalArgumentException.class,()->new RagChunker().split("text",64,64));} }
+class RagChunkerTest { @Test void createsChunks(){var x=new RagChunker().split("one two three four five six seven eight nine ten eleven twelve thirteen fourteen",64,10);assertTrue(x.size()>1);} @Test void rejectsBadOverlap(){assertThrows(IllegalArgumentException.class,()->new RagChunker().split("text",64,64));} }
