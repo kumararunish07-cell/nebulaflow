@@ -34,3 +34,12 @@ nebulaflow:
     ttl: 10m
   outbox:
     poll-delay: 1000
+  security:
+    # Development-only identities. Set NEBULAFLOW_API_KEYS in real environments.
+    # Format: apiKey=principal|ROLE_NAME|TENANTS:tenant-a,tenant-b;otherKey=...
+    api-keys: "${NEBULAFLOW_API_KEYS:demo-admin=admin|ROLE_ADMIN|ROLE_OPERATOR|TENANTS:demo;demo-operator=operator|ROLE_OPERATOR|TENANTS:demo;demo-viewer=viewer|ROLE_VIEWER|TENANTS:demo}"
+  runners:
+    http:
+      allowed-hosts: "${NEBULAFLOW_HTTP_ALLOWED_HOSTS:localhost,127.0.0.1}"
+      default-timeout: "${NEBULAFLOW_HTTP_TIMEOUT:10s}"
+      max-response-bytes: "${NEBULAFLOW_HTTP_MAX_RESPONSE_BYTES:1048576}"
