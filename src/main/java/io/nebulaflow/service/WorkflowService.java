@@ -1,13 +1,119 @@
 package io.nebulaflow.service;
-import com.fasterxml.jackson.core.type.TypeReference; import com.fasterxml.jackson.databind.ObjectMapper; import io.nebulaflow.api.ApiModels.*; import io.nebulaflow.cache.WorkflowCache; import io.nebulaflow.domain.*; import io.nebulaflow.engine.*; import io.nebulaflow.events.WorkflowEventPublisher; import io.nebulaflow.repository.*; import io.nebulaflow.tenant.TenantContext; import org.springframework.stereotype.Service; import org.springframework.transaction.annotation.Transactional; import java.time.Instant; import java.util.*; import java.util.concurrent.*;
-@Service public class WorkflowService {
-  private final WorkflowDefinitionRepository definitions; private final WorkflowRunRepository runs; private final ObjectMapper mapper; private final ExecutionEngine engine; private final WorkflowEventPublisher events; private final WorkflowCache cache; private final ExecutorService workers=Executors.newVirtualThreadPerTaskExecutor();
-  public WorkflowService(WorkflowDefinitionRepository d,WorkflowRunRepository r,ObjectMapper m,ExecutionEngine e,WorkflowEventPublisher p,WorkflowCache c){definitions=d;runs=r;mapper=m;engine=e;events=p;cache=c;}
-  @Transactional public WorkflowResponse create(CreateWorkflowRequest request){String tenant=TenantContext.require(); DagPlanner.plan(request.definition()); int version=definitions.countByTenantIdAndName(tenant,request.name())+1; try{var entity=new WorkflowDefinitionEntity(UUID.randomUUID(),tenant,request.name(),version,true,mapper.writeValueAsString(request.definition()),Instant.now()); var saved=definitions.save(entity); cache.put(tenant,saved.getId(),request.definition()); return toResponse(saved);}catch(Exception e){throw new IllegalStateException("could not persist workflow",e);}}
-  @Transactional(readOnly=true) public List<WorkflowSummary> list(){return definitions.findByTenantIdAndActiveTrueOrderByNameAscVersionDesc(TenantContext.require()).stream().map(d->new WorkflowSummary(d.getId(),d.getName(),d.getVersion(),d.isActive())).toList();}
-  @Transactional public RunResponse start(UUID workflowId,StartRunRequest request){String tenant=TenantContext.require(); var workflow=definitions.findByTenantIdAndId(tenant,workflowId).orElseThrow(()->new NoSuchElementException("workflow not found")); if(request!=null&&request.idempotencyKey()!=null){var prior=runs.findByTenantIdAndWorkflowIdAndIdempotencyKey(tenant,workflowId,request.idempotencyKey());if(prior.isPresent())return toResponse(prior.get());} try{String input=mapper.writeValueAsString(request==null?Map.of():Optional.ofNullable(request.input()).orElse(Map.of())); var run=new WorkflowRunEntity(UUID.randomUUID(),tenant,workflowId,RunStatus.QUEUED,input,request==null?null:request.idempotencyKey(),Instant.now()); run=runs.save(run); Map<String,Object> spec=mapper.readValue(workflow.getDefinitionJson(),new TypeReference<>(){}); Map<String,Object> in=mapper.readValue(input,new TypeReference<>(){}); WorkflowRunEntity stored=run; workers.submit(()->executeAsync(stored,spec,in)); return toResponse(run);}catch(Exception e){throw new IllegalStateException("could not start workflow",e);}}
-  @Transactional(readOnly=true) public RunResponse getRun(UUID id){return toResponse(runs.findByTenantIdAndId(TenantContext.require(),id).orElseThrow(()->new NoSuchElementException("run not found")));}
-  @Transactional public void executeAsync(WorkflowRunEntity run,Map<String,Object> spec,Map<String,Object> input){try{run.markRunning();runs.save(run);events.publish(run); var output=engine.execute(spec,input); run.markSucceeded(mapper.writeValueAsString(output));runs.save(run);events.publish(run);}catch(Exception e){run.markFailed(e.getMessage());runs.save(run);events.publish(run);}}
-  private WorkflowResponse toResponse(WorkflowDefinitionEntity d){try{return new WorkflowResponse(d.getId(),d.getTenantId(),d.getName(),d.getVersion(),mapper.readValue(d.getDefinitionJson(),new TypeReference<>(){}),d.getCreatedAt());}catch(Exception e){throw new IllegalStateException(e);}}
-  private RunResponse toResponse(WorkflowRunEntity r){try{Map<String,Object> out=r.getOutputJson()==null?Map.of():mapper.readValue(r.getOutputJson(),new TypeReference<>(){});return new RunResponse(r.getId(),r.getWorkflowId(),r.getTenantId(),r.getStatus().name(),out,r.getCreatedAt(),r.getStartedAt(),r.getFinishedAt());}catch(Exception e){throw new IllegalStateException(e);}}
+
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.nebulaflow.api.ApiModels.*;
+import io.nebulaflow.cache.WorkflowCache;
+import io.nebulaflow.domain.*;
+import io.nebulaflow.engine.*;
+import io.nebulaflow.events.WorkflowEventPublisher;
+import io.nebulaflow.repository.*;
+import io.nebulaflow.runner.TaskContext;
+import io.nebulaflow.tenant.TenantContext;
+import java.time.Instant;
+import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@Service
+public class WorkflowService {
+  private final WorkflowDefinitionRepository definitions;
+  private final WorkflowRunRepository runs;
+  private final ObjectMapper mapper;
+  private final ExecutionEngine engine;
+  private final WorkflowEventPublisher events;
+  private final WorkflowCache cache;
+  private final ExecutorService workers = Executors.newVirtualThreadPerTaskExecutor();
+
+  public WorkflowService(WorkflowDefinitionRepository d, WorkflowRunRepository r, ObjectMapper m,
+      ExecutionEngine e, WorkflowEventPublisher p, WorkflowCache c) {
+    definitions = d; runs = r; mapper = m; engine = e; events = p; cache = c;
+  }
+
+  @Transactional
+  public WorkflowResponse create(CreateWorkflowRequest request) {
+    String tenant = TenantContext.require();
+    DagPlanner.plan(request.definition());
+    int version = definitions.countByTenantIdAndName(tenant, request.name()) + 1;
+    try {
+      var entity = new WorkflowDefinitionEntity(UUID.randomUUID(), tenant, request.name(), version, true,
+          mapper.writeValueAsString(request.definition()), Instant.now());
+      var saved = definitions.save(entity);
+      cache.put(tenant, saved.getId(), request.definition());
+      return toResponse(saved);
+    } catch (Exception e) {
+      throw new IllegalStateException("could not persist workflow", e);
+    }
+  }
+
+  @Transactional(readOnly = true)
+  public List<WorkflowSummary> list() {
+    return definitions.findByTenantIdAndActiveTrueOrderByNameAscVersionDesc(TenantContext.require()).stream()
+        .map(d -> new WorkflowSummary(d.getId(), d.getName(), d.getVersion(), d.isActive())).toList();
+  }
+
+  @Transactional
+  public RunResponse start(UUID workflowId, StartRunRequest request) {
+    String tenant = TenantContext.require();
+    var workflow = definitions.findByTenantIdAndId(tenant, workflowId)
+        .orElseThrow(() -> new NoSuchElementException("workflow not found"));
+    if (request != null && request.idempotencyKey() != null) {
+      var prior = runs.findByTenantIdAndWorkflowIdAndIdempotencyKey(tenant, workflowId, request.idempotencyKey());
+      if (prior.isPresent()) return toResponse(prior.get());
+    }
+    try {
+      String input = mapper.writeValueAsString(request == null ? Map.of() : Optional.ofNullable(request.input()).orElse(Map.of()));
+      var run = new WorkflowRunEntity(UUID.randomUUID(), tenant, workflowId, RunStatus.QUEUED, input,
+          request == null ? null : request.idempotencyKey(), Instant.now());
+      run = runs.save(run);
+      Map<String, Object> spec = mapper.readValue(workflow.getDefinitionJson(), new TypeReference<>() {});
+      Map<String, Object> in = mapper.readValue(input, new TypeReference<>() {});
+      WorkflowRunEntity stored = run;
+      workers.submit(() -> executeAsync(stored, spec, in));
+      return toResponse(run);
+    } catch (Exception e) {
+      throw new IllegalStateException("could not start workflow", e);
+    }
+  }
+
+  @Transactional(readOnly = true)
+  public RunResponse getRun(UUID id) {
+    return toResponse(runs.findByTenantIdAndId(TenantContext.require(), id)
+        .orElseThrow(() -> new NoSuchElementException("run not found")));
+  }
+
+  @Transactional
+  public void executeAsync(WorkflowRunEntity run, Map<String, Object> spec, Map<String, Object> input) {
+    try {
+      run.markRunning();
+      runs.save(run);
+      events.publish(run);
+      var output = engine.execute(spec, input, new TaskContext(run.getTenantId(), run.getId(), input));
+      run.markSucceeded(mapper.writeValueAsString(output));
+      runs.save(run);
+      events.publish(run);
+    } catch (Exception e) {
+      run.markFailed(e.getMessage());
+      runs.save(run);
+      events.publish(run);
+    }
+  }
+
+  private WorkflowResponse toResponse(WorkflowDefinitionEntity d) {
+    try {
+      return new WorkflowResponse(d.getId(), d.getTenantId(), d.getName(), d.getVersion(),
+          mapper.readValue(d.getDefinitionJson(), new TypeReference<>() {}), d.getCreatedAt());
+    } catch (Exception e) { throw new IllegalStateException(e); }
+  }
+
+  private RunResponse toResponse(WorkflowRunEntity r) {
+    try {
+      Map<String, Object> out = r.getOutputJson() == null ? Map.of()
+          : mapper.readValue(r.getOutputJson(), new TypeReference<>() {});
+      return new RunResponse(r.getId(), r.getWorkflowId(), r.getTenantId(), r.getStatus().name(), out,
+          r.getCreatedAt(), r.getStartedAt(), r.getFinishedAt());
+    } catch (Exception e) { throw new IllegalStateException(e); }
+  }
 }
