@@ -43,3 +43,9 @@ nebulaflow:
       allowed-hosts: "${NEBULAFLOW_HTTP_ALLOWED_HOSTS:localhost,127.0.0.1}"
       default-timeout: "${NEBULAFLOW_HTTP_TIMEOUT:10s}"
       max-response-bytes: "${NEBULAFLOW_HTTP_MAX_RESPONSE_BYTES:1048576}"
+  rag:
+    # Local deterministic embeddings keep the sample self-contained. Replace EmbeddingModel for hosted embeddings.
+    embedding-dimensions: "${NEBULAFLOW_RAG_EMBEDDING_DIMENSIONS:256}"
+    chunk-size: "${NEBULAFLOW_RAG_CHUNK_SIZE:1200}"
+    chunk-overlap: "${NEBULAFLOW_RAG_CHUNK_OVERLAP:150}"
+    max-top-k: "${NEBULAFLOW_RAG_MAX_TOP_K:20}"
