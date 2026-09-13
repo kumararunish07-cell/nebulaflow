@@ -53,6 +53,38 @@ curl -X POST http://localhost:8080/api/v1/workflows \
 
 Trigger it with `POST /api/v1/workflows/{id}/runs` using `demo-admin` or `demo-operator`, then poll `GET /api/v1/runs/{runId}` using any key authorized for the `demo` tenant.
 
+## RAG task runners
+
+RAG is exposed through the same DAG plugin engine as the other task types. `RAG_INGEST` splits and replaces a document's chunks in a tenant-scoped collection. `RAG_QUERY` embeds a question, ranks stored chunks with cosine similarity, and returns matches plus a context string for a downstream LLM or HTTP task.
+
+The default embedding implementation is deterministic and local, so the example has no API key or model download requirement. It is a development baseline; implement `EmbeddingModel` with a hosted model or vector database adapter for production-scale semantic search. Never place credentials in workflow definitions.
+
+Example step configuration:
+
+```json
+{
+  "id": "retrieve-context",
+  "type": "RAG_QUERY",
+  "config": {
+    "collection": "handbook",
+    "query": "How do workers execute runs?",
+    "topK": 3,
+    "minScore": 0.05
+  }
+}
+```
+
+`RAG_INGEST` accepts `documentId`, `text`, `metadata`, or a `documents` array of `{documentId, text, metadata}` objects. Set `chunkSize` and `chunkOverlap` per task when needed. The query result contains source metadata and a `context` field suitable for a downstream generation step.
+
+Configuration:
+
+```bash
+NEBULAFLOW_RAG_EMBEDDING_DIMENSIONS=256
+NEBULAFLOW_RAG_CHUNK_SIZE=1200
+NEBULAFLOW_RAG_CHUNK_OVERLAP=150
+NEBULAFLOW_RAG_MAX_TOP_K=20
+```
+
 ## HTTP task runner
 
 The `HTTP` plugin accepts a URL, method, headers, and optional body. The host must be explicitly allowlisted through `NEBULAFLOW_HTTP_ALLOWED_HOSTS`.
